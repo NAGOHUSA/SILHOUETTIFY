@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Silhouettify – Free Photo to Silhouette SVG Converter</title>
+  <title>Silhouettify – Free Photo to Silhouette SVG 1.1 Converter</title>
   <meta name="description" content="Silhouettify – Instantly turn any photo into a clean, customizable silhouette SVG. 100% free, no upload, works offline."/>
   <style>
     :root {
@@ -212,22 +212,33 @@
 
     document.getElementById('threshold').oninput = e => {
       document.getElementById('threshold-value').textContent = e.target.value;
-      if (originalImage) processWithOpenCV(originalImage);
+      if (originalImage) {
+        processWithOpenCV(originalImage);
+        if (isInverted) applyInvert();
+      }
     };
 
     document.getElementById('smoothing').oninput = e => {
       document.getElementById('smoothing-value').textContent = e.target.value;
-      if (originalImage) processWithOpenCV(originalImage);
+      if (originalImage) {
+        processWithOpenCV(originalImage);
+        if (isInverted) applyInvert();
+      }
     };
 
     document.getElementById('invert-btn').onclick = () => {
       if (!originalImageData) return;
       isInverted = !isInverted;
+      applyInvert();
+    };
+
+    function applyInvert() {
+      if (!originalImageData) return;
       let mat = originalImageData.clone();
       if (isInverted) cv.bitwise_not(mat, mat);
       cv.imshow(canvas, mat);
       mat.delete();
-    };
+    }
 
     document.getElementById('reset-btn').onclick = () => {
       if (originalImage) {
