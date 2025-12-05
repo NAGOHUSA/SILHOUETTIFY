@@ -29,14 +29,21 @@
     .control {margin: 18px 0;text-align: left;display: flex;align-items: center;justify-content: space-between;flex-wrap: wrap;gap: 12px;}
     label {font-weight: 600;color: #5b21b6;min-width: 140px;}
     input[type="range"] {flex: 1;max-width: 320px;}
-    button {background: var(--primary);color: white;border: none;padding: 14px 28px;border-radius: 12px;font-size: 16px;font-weight: 600;cursor: pointer;transition: 0.2s;}
+    input[type="number"] {width: 80px;padding: 8px;border: 2px solid #d8b4fe;border-radius: 8px;font-size: 14px;}
+    button {background: var(--primary);color: white;border: none;padding: 14px 28px;border-radius: 12px;font-size: 16px;font-weight: 600;cursor: pointer;transition: 0.2s;margin: 5px;}
     button:hover {background: var(--primary-dark);transform: translateY(-2px);}
     button.secondary {background: #94a3b8;}
+    button.success {background: #10b981;}
+    button.success:hover {background: #059669;}
     #output-svg {background: var(--card);padding: 30px;border-radius: 16px;margin: 30px 0;box-shadow: 0 20px 40px rgba(139,92,246,0.15);}
     #output-svg svg {width: 100%;height: auto;}
+    .download-section {margin: 20px 0;}
+    .format-options {display: flex;gap: 10px;justify-content: center;flex-wrap: wrap;margin-top: 15px;}
     .hidden {display: none;}
     footer {margin-top: 80px;color: #94a3b8;font-size: 14px;}
     footer a {color: var(--primary);}
+    .info-text {font-size: 14px;color: #6b7280;margin-top: 5px;}
+    select {padding: 8px 12px;border: 2px solid #d8b4fe;border-radius: 8px;font-size: 14px;background: white;cursor: pointer;}
   </style>
 </head>
 <body>
@@ -57,34 +64,74 @@
         <label>Silhouette Color:</label>
         <input type="color" id="fill-color" value="#000000"/>
       </div>
+      
+      <div class="control">
+        <label>Background Color:</label>
+        <input type="color" id="bg-color" value="#ffffff"/>
+      </div>
+      
       <div class="control">
         <label>Simplify:</label>
-        <input type="range" id="turd-size" min="0" max="10" step="0.5" value="2"/>
+        <input type="range" id="turd-size" min="0" max="20" step="0.5" value="2"/>
         <span id="turd-value">2</span>
       </div>
+      
+      <div class="control">
+        <label>Threshold:</label>
+        <input type="range" id="threshold" min="1" max="50" step="1" value="15"/>
+        <span id="threshold-value">15</span>
+      </div>
+      
+      <div class="control">
+        <label>Smoothing:</label>
+        <input type="range" id="smoothing" min="1" max="15" step="2" value="5"/>
+        <span id="smoothing-value">5</span>
+      </div>
+
+      <div class="control">
+        <label>Output Size:</label>
+        <select id="size-preset">
+          <option value="original">Original Size</option>
+          <option value="512">512×512</option>
+          <option value="1024" selected>1024×1024</option>
+          <option value="2048">2048×2048</option>
+          <option value="custom">Custom Size</option>
+        </select>
+        <input type="number" id="custom-width" placeholder="Width" class="hidden" min="1" value="1024"/>
+        <input type="number" id="custom-height" placeholder="Height" class="hidden" min="1" value="1024"/>
+      </div>
+      
       <div class="control">
         <button id="convert-btn">Generate Silhouette SVG</button>
         <button id="invert-btn" class="secondary">Invert</button>
+        <button id="reset-btn" class="secondary">Reset Image</button>
       </div>
     </div>
 
     <div id="output-svg" class="hidden"></div>
-    <button id="download-btn" class="hidden">Download Silhouettify.svg</button>
+    
+    <div class="download-section hidden" id="download-section">
+      <div class="format-options">
+        <button id="download-svg-btn" class="success">Download SVG</button>
+        <button id="download-png-btn" class="success">Download PNG</button>
+        <button id="copy-svg-btn" class="secondary">Copy SVG Code</button>
+      </div>
+      <p class="info-text">SVG is scalable to any size • PNG uses selected output size</p>
+    </div>
 
     <footer>
       Silhouettify by <a href="https://nagohcreative.com" target="_blank">NagohCreative.Com</a> • 100% client-side • Open source on GitHub
     </footer>
   </div>
 
-  <!-- OpenCV.js -->
   <script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCVReady()"></script>
-
-  <!-- Potrace WASM -->
   <script src="https://unpkg.com/@plotters/potrace@2.0.0/dist/potrace.min.js"></script>
 
   <script>
     let originalImageData = null;
     let isInverted = false;
+    let currentSvgString = '';
+    let originalImage = null;
 
     const dropArea = document.getElementById('drop-area');
     const fileInput = document.getElementById('file-input');
@@ -92,9 +139,8 @@
     const ctx = canvas.getContext('2d');
     const controls = document.getElementById('controls');
     const outputDiv = document.getElementById('output-svg');
-    const downloadBtn = document.getElementById('download-btn');
+    const downloadSection = document.getElementById('download-section');
 
-    // === FIXED DRAG & DROP + CLICK ===
     function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
 
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
@@ -119,19 +165,20 @@
     fileInput.addEventListener('change', e => {
       if (e.target.files[0]) handleFile(e.target.files[0]);
     });
-    // === END FIXED SECTION ===
 
     function handleFile(file) {
       const reader = new FileReader();
       reader.onload = e => {
         const img = new Image();
         img.onload = () => {
+          originalImage = img;
           canvas.width = img.width;
           canvas.height = img.height;
           canvas.classList.remove('hidden');
           controls.classList.remove('hidden');
           outputDiv.classList.add('hidden');
-          downloadBtn.classList.add('hidden');
+          downloadSection.classList.add('hidden');
+          isInverted = false;
           processWithOpenCV(img);
         };
         img.src = e.target.result;
@@ -144,6 +191,9 @@
     }
 
     function processWithOpenCV(img) {
+      const threshold = parseInt(document.getElementById('threshold').value);
+      const smoothing = parseInt(document.getElementById('smoothing').value);
+      
       ctx.drawImage(img, 0, 0);
       let src = cv.imread(canvas);
       let gray = new cv.Mat();
@@ -151,14 +201,24 @@
       let thresh = new cv.Mat();
 
       cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-      cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-      cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 10);
+      cv.GaussianBlur(gray, blurred, new cv.Size(smoothing, smoothing), 0);
+      cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, threshold, 10);
 
       cv.imshow(canvas, thresh);
       originalImageData = thresh.clone();
 
       src.delete(); gray.delete(); blurred.delete(); thresh.delete();
     }
+
+    document.getElementById('threshold').oninput = e => {
+      document.getElementById('threshold-value').textContent = e.target.value;
+      if (originalImage) processWithOpenCV(originalImage);
+    };
+
+    document.getElementById('smoothing').oninput = e => {
+      document.getElementById('smoothing-value').textContent = e.target.value;
+      if (originalImage) processWithOpenCV(originalImage);
+    };
 
     document.getElementById('invert-btn').onclick = () => {
       if (!originalImageData) return;
@@ -169,13 +229,33 @@
       mat.delete();
     };
 
+    document.getElementById('reset-btn').onclick = () => {
+      if (originalImage) {
+        isInverted = false;
+        processWithOpenCV(originalImage);
+      }
+    };
+
     document.getElementById('turd-size').oninput = e => {
       document.getElementById('turd-value').textContent = e.target.value;
+    };
+
+    document.getElementById('size-preset').onchange = e => {
+      const customWidth = document.getElementById('custom-width');
+      const customHeight = document.getElementById('custom-height');
+      if (e.target.value === 'custom') {
+        customWidth.classList.remove('hidden');
+        customHeight.classList.remove('hidden');
+      } else {
+        customWidth.classList.add('hidden');
+        customHeight.classList.add('hidden');
+      }
     };
 
     document.getElementById('convert-btn').onclick = () => {
       const turdSize = parseFloat(document.getElementById('turd-size').value);
       const fillColor = document.getElementById('fill-color').value;
+      const bgColor = document.getElementById('bg-color').value;
 
       const svg = Potrace.potrace(canvas, {
         turdSize: turdSize,
@@ -184,21 +264,88 @@
         color: fillColor
       });
 
-      const finalSvg = svg.replace(/fill="[^"]*"/g, `fill="${fillColor}"`);
+      // Get size settings
+      const sizePreset = document.getElementById('size-preset').value;
+      let width, height;
+      
+      if (sizePreset === 'original') {
+        width = canvas.width;
+        height = canvas.height;
+      } else if (sizePreset === 'custom') {
+        width = parseInt(document.getElementById('custom-width').value) || 1024;
+        height = parseInt(document.getElementById('custom-height').value) || 1024;
+      } else {
+        width = height = parseInt(sizePreset);
+      }
 
+      // Create proper SVG with viewBox and dimensions
+      const svgMatch = svg.match(/<svg[^>]*>([\s\S]*)<\/svg>/);
+      const pathContent = svgMatch ? svgMatch[1] : '';
+      
+      const finalSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${canvas.width} ${canvas.height}">
+  <rect width="100%" height="100%" fill="${bgColor}"/>
+  <g fill="${fillColor}">
+    ${pathContent}
+  </g>
+</svg>`;
+
+      currentSvgString = finalSvg;
       outputDiv.innerHTML = finalSvg;
       outputDiv.classList.remove('hidden');
-      downloadBtn.classList.remove('hidden');
+      downloadSection.classList.remove('hidden');
+    };
 
-      downloadBtn.onclick = () => {
-        const blob = new Blob([finalSvg], {type: 'image/svg+xml'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'silhouettify.svg';
-        a.click();
-        URL.revokeObjectURL(url);
+    document.getElementById('download-svg-btn').onclick = () => {
+      const blob = new Blob([currentSvgString], {type: 'image/svg+xml;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'silhouettify.svg';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    document.getElementById('download-png-btn').onclick = () => {
+      const sizePreset = document.getElementById('size-preset').value;
+      let width, height;
+      
+      if (sizePreset === 'original') {
+        width = canvas.width;
+        height = canvas.height;
+      } else if (sizePreset === 'custom') {
+        width = parseInt(document.getElementById('custom-width').value) || 1024;
+        height = parseInt(document.getElementById('custom-height').value) || 1024;
+      } else {
+        width = height = parseInt(sizePreset);
+      }
+
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = width;
+      tempCanvas.height = height;
+      const tempCtx = tempCanvas.getContext('2d');
+      
+      const img = new Image();
+      img.onload = () => {
+        tempCtx.drawImage(img, 0, 0, width, height);
+        tempCanvas.toBlob(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'silhouettify.png';
+          a.click();
+          URL.revokeObjectURL(url);
+        }, 'image/png');
       };
+      img.src = 'data:image/svg+xml;base64,' + btoa(currentSvgString);
+    };
+
+    document.getElementById('copy-svg-btn').onclick = () => {
+      navigator.clipboard.writeText(currentSvgString).then(() => {
+        const btn = document.getElementById('copy-svg-btn');
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = originalText, 2000);
+      });
     };
   </script>
 </body>
