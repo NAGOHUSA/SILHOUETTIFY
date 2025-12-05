@@ -3,86 +3,111 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Photo to Silhouette SVG</title>
-  <meta name="description" content="Free tool to convert any photo into a clean silhouette SVG. Drag & drop, customize color, download instantly."/>
+  <title>Silhouettify – Free Photo to Silhouette SVG Converter</title>
+  <meta name="description" content="Silhouettify – Instantly turn any photo into a clean, customizable silhouette SVG. 100% free, no upload, works offline."/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>Silhouette</text></svg>"/>
   <style>
     :root {
-      --primary: #2563eb;
-      --bg: #f8fafc;
+      --primary: #8b5cf6;
+      --primary-dark: #7c3aed;
+      --bg: #faf5ff;
+      --card: #ffffff;
     }
     body {
-      font-family: 'Segoe UI', sans-serif;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       background: var(--bg);
       margin: 0;
       padding: 20px;
       text-align: center;
       color: #333;
+      min-height: 100vh;
     }
-    h1 { color: #1e293b; margin-bottom: 8px; }
-    p { color: #64748b; }
+    h1 {
+      color: var(--primary-dark);
+      margin-bottom: 4px;
+      font-size: 2.8rem;
+    }
+    .subtitle {
+      color: #a78bfa;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    .creator {
+      font-size: 1.1rem;
+      color: #6b7280;
+      margin-bottom: 30px;
+    }
+    .creator a { color: var(--primary); text-decoration: none; }
+    .creator a:hover { text-decoration: underline; }
     .container { max-width: 720px; margin: 0 auto; }
     #drop-area {
-      border: 4px dashed #cbd5e1;
-      border-radius: 16px;
-      padding: 40px;
+      border: 4px dashed #d8b4fe;
+      border-radius: 20px;
+      padding: 50px;
       margin: 20px auto;
-      background: white;
+      background: var(--card);
       transition: all 0.3s;
       cursor: pointer;
+      font-size: 1.2rem;
     }
-    #drop-area.dragover { border-color: var(--primary); background: #eff6ff; }
-    #preview-canvas { max-width: 100%; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin: 20px 0; }
+    #drop-area.dragover { border-color: var(--primary); background: #f3e8ff; }
+    #preview-canvas { max-width: 100%; border-radius: 16px; box-shadow: 0 20px 40px rgba(139,92,246,0.15); margin: 30px 0; }
     .controls {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      background: var(--card);
+      padding: 25px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(139,92,246,0.1);
       margin: 20px 0;
     }
     .control {
-      margin: 15px 0;
+      margin: 18px 0;
       text-align: left;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 12px;
     }
-    label { font-weight: 600; color: #475569; min-width: 120px; }
-    input[type="range"] { flex: 1; max-width: 300px; }
+    label { font-weight: 600; color: #5b21b6; min-width: 140px; }
+    input[type="range"] { flex: 1; max-width: 320px; }
     button {
       background: var(--primary);
       color: white;
       border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
+      padding: 14px 28px;
+      border-radius: 12px;
       font-size: 16px;
+      font-weight: 600;
       cursor: pointer;
-      margin: 10px 5px;
+      transition: 0.2s;
     }
-    button:hover { background: #1d4ed8; }
-    button.secondary {
-      background: #64748b;
-    }
+    button:hover { background: var(--primary-dark); transform: translateY(-2px); }
+    button.secondary { background: #94a3b8; }
     #output-svg { 
-      background: white; 
-      padding: 20px; 
-      border-radius: 12px; 
-      margin: 20px 0;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      background: var(--card); 
+      padding: 30px; 
+      border-radius: 16px; 
+      margin: 30px 0;
+      box-shadow: 0 20px 40px rgba(139,92,246,0.15);
     }
     #output-svg svg { width: 100%; height: auto; }
     .hidden { display: none; }
-    footer { margin-top: 60px; color: #94a3b8; font-size: 14px; }
+    footer {
+      margin-top: 80px;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+    footer a { color: var(--primary); }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Photo → Silhouette SVG</h1>
-    <p>Free tool • No upload • Works offline • Instant download</p>
+    <h1>Silhouettify</h1>
+    <div class="subtitle">Free Photo → Silhouette SVG Converter</div>
+    <div class="creator">Created by <a href="https://nagohcreative.com" target="_blank">NagohCreative.Com</a></div>
 
     <div id="drop-area">
-      <p>Click or drag & drop an image here</p>
+      <p>Click or drag & drop your photo here</p>
       <input type="file" id="file-input" accept="image/*" style="display:none"/>
     </div>
 
@@ -99,23 +124,23 @@
         <span id="turd-value">2</span>
       </div>
       <div class="control">
-        <button id="convert-btn">Generate SVG</button>
-        <button id="invert-btn" class="secondary">Invert Colors</button>
+        <button id="convert-btn">Generate Silhouette SVG</button>
+        <button id="invert-btn" class="secondary">Invert</button>
       </div>
     </div>
 
     <div id="output-svg" class="hidden"></div>
-    <button id="download-btn" class="hidden">Download Silhouette.svg</button>
+    <button id="download-btn" class="hidden">Download Silhouettify.svg</button>
 
     <footer>
-      Made with ❤️ • 100% client-side • <a href="https://github.com/yourusername/your-repo">Fork on GitHub</a>
+      Silhouettify by <a href="https://nagohcreative.com" target="_blank">NagohCreative.Com</a> • 100% client-side • Open source on GitHub
     </footer>
   </div>
 
-  <!-- OpenCV.js (for smart background removal) -->
-  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCVReady();"></async>
+  <!-- OpenCV.js -->
+  <script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCVReady();"></script>
 
-  <!-- Potrace WASM (best JS port in 2025) -->
+  <!-- Potrace WASM -->
   <script src="https://unpkg.com/@plotters/potrace@2.0.0/dist/potrace.min.js"></script>
 
   <script>
@@ -130,28 +155,24 @@
     const outputDiv = document.getElementById('output-svg');
     const downloadBtn = document.getElementById('download-btn');
 
-    // Drag & Drop (mobile friendly)
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      dropArea.addEventListener(event nName, preventDefaults, false);
+    // Mobile-friendly drag & drop
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => {
+      dropArea.addEventListener(e, preventDefaults, false);
     });
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
+    ['dragenter', 'dragover'].forEach(e => {
+      dropArea.addEventListener(e, () => dropArea.classList.add('dragover'), false);
     });
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
+    ['dragleave', 'drop'].forEach(e => {
+      dropArea.addEventListener(e, () => dropArea.classList.remove('dragover'), false);
     });
-    dropArea.addEventListener('drop', handleDrop);
+    dropArea.addEventListener('drop', e => handleFile(e.dataTransfer FILES[0]));
     dropArea.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', e => e.target.files[0] && handleFile(e.target.files[0]));
 
     function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
-    function handleDrop(e) {
-      const dt = e.dataTransfer;
-      const file = dt.files[0];
-      if (file && file.type.startsWith('image/')) handleFile(file);
-    }
 
     function handleFile(file) {
+      if (!file.type.startsWith('image/')) return;
       const reader = new FileReader();
       reader.onload = e => {
         const img = new Image();
@@ -170,7 +191,7 @@
     }
 
     function onOpenCVReady() {
-      console.log("OpenCV.js loaded");
+      console.log("OpenCV.js ready");
     }
 
     function processWithOpenCV(img) {
@@ -185,24 +206,21 @@
       cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 10);
 
       cv.imshow(canvas, thresh);
-
       originalImageData = thresh.clone();
 
-      src.delete(); gray.delete(); blurred.delete(); thresh.delete();
+      src.delete(); gray.delete(); blurred.delete();
     }
 
     document.getElementById('invert-btn').onclick = () => {
       if (!originalImageData) return;
       isInverted = !isInverted;
       let mat = originalImageData.clone();
-      if (isInverted) {
-        cv.bitwise_not(mat, mat);
-      }
+      if (isInverted) cv.bitwise_not(mat, mat);
       cv.imshow(canvas, mat);
       mat.delete();
     };
 
-    document.getElementById('turd-size').oninput = (e) => {
+    document.getElementById('turd-size').oninput = e => {
       document.getElementById('turd-value').textContent = e.target.value;
     };
 
@@ -217,19 +235,18 @@
         color: fillColor
       });
 
-      // Replace fill with user color
-      const coloredSvg = svg.replace(/fill="[^"]*"/g, `fill="${fillColor}"`);
+      const finalSvg = svg.replace(/fill="[^"]*"/g, `fill="${fillColor}"`);
 
-      outputDiv.innerHTML = coloredSvg;
+      outputDiv.innerHTML = finalSvg;
       outputDiv.classList.remove('hidden');
       downloadBtn.classList.remove('hidden');
 
       downloadBtn.onclick = () => {
-        const blob = new Blob([coloredSvg], {type: 'image/svg+xml'});
+        const blob = new Blob([finalSvg], {type: 'image/svg+xml'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'silhouette.svg';
+        a.download = 'silhouettify.svg';
         a.click();
         URL.revokeObjectURL(url);
       };
