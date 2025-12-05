@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Photo to Silhouette SVG</title>
+  <meta name="description" content="Free tool to convert any photo into a clean silhouette SVG. Drag & drop, customize color, download instantly."/>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #f8fafc;
+    }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+      color: #333;
+    }
+    h1 { color: #1e293b; margin-bottom: 8px; }
+    p { color: #64748b; }
+    .container { max-width: 720px; margin: 0 auto; }
+    #drop-area {
+      border: 4px dashed #cbd5e1;
+      border-radius: 16px;
+      padding: 40px;
+      margin: 20px auto;
+      background: white;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    #drop-area.dragover { border-color: var(--primary); background: #eff6ff; }
+    #preview-canvas { max-width: 100%; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin: 20px 0; }
+    .controls {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      margin: 20px 0;
+    }
+    .control {
+      margin: 15px 0;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    label { font-weight: 600; color: #475569; min-width: 120px; }
+    input[type="range"] { flex: 1; max-width: 300px; }
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover { background: #1d4ed8; }
+    button.secondary {
+      background: #64748b;
+    }
+    #output-svg { 
+      background: white; 
+      padding: 20px; 
+      border-radius: 12px; 
+      margin: 20px 0;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    #output-svg svg { width: 100%; height: auto; }
+    .hidden { display: none; }
+    footer { margin-top: 60px; color: #94a3b8; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Photo → Silhouette SVG</h1>
+    <p>Free tool • No upload • Works offline • Instant download</p>
+
+    <div id="drop-area">
+      <p>Click or drag & drop an image here</p>
+      <input type="file" id="file-input" accept="image/*" style="display:none"/>
+    </div>
+
+    <canvas id="preview-canvas" class="hidden"></canvas>
+
+    <div class="controls hidden" id="controls">
+      <div class="control">
+        <label>Silhouette Color:</label>
+        <input type="color" id="fill-color" value="#000000"/>
+      </div>
+      <div class="control">
+        <label>Simplify:</label>
+        <input type="range" id="turd-size" min="0" max="10" step="0.5" value="2"/>
+        <span id="turd-value">2</span>
+      </div>
+      <div class="control">
+        <button id="convert-btn">Generate SVG</button>
+        <button id="invert-btn" class="secondary">Invert Colors</button>
+      </div>
+    </div>
+
+    <div id="output-svg" class="hidden"></div>
+    <button id="download-btn" class="hidden">Download Silhouette.svg</button>
+
+    <footer>
+      Made with ❤️ • 100% client-side • <a href="https://github.com/yourusername/your-repo">Fork on GitHub</a>
+    </footer>
+  </div>
+
+  <!-- OpenCV.js (for smart background removal) -->
+  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCVReady();"></async>
+
+  <!-- Potrace WASM (best JS port in 2025) -->
+  <script src="https://unpkg.com/@plotters/potrace@2.0.0/dist/potrace.min.js"></script>
+
+  <script>
+    let originalImageData = null;
+    let isInverted = false;
+
+    const dropArea = document.getElementById('drop-area');
+    const fileInput = document.getElementById('file-input');
+    const canvas = document.getElementById('preview-canvas');
+    const ctx = canvas.getContext('2d');
+    const controls = document.getElementById('controls');
+    const outputDiv = document.getElementById('output-svg');
+    const downloadBtn = document.getElementById('download-btn');
+
+    // Drag & Drop (mobile friendly)
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(event nName, preventDefaults, false);
+    });
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
+    });
+    dropArea.addEventListener('drop', handleDrop);
+    dropArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => e.target.files[0] && handleFile(e.target.files[0]));
+
+    function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+    function handleDrop(e) {
+      const dt = e.dataTransfer;
+      const file = dt.files[0];
+      if (file && file.type.startsWith('image/')) handleFile(file);
+    }
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          canvas.classList.remove('hidden');
+          controls.classList.remove('hidden');
+          outputDiv.classList.add('hidden');
+          downloadBtn.classList.add('hidden');
+          processWithOpenCV(img);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function onOpenCVReady() {
+      console.log("OpenCV.js loaded");
+    }
+
+    function processWithOpenCV(img) {
+      ctx.drawImage(img, 0, 0);
+      let src = cv.imread(canvas);
+      let gray = new cv.Mat();
+      let blurred = new cv.Mat();
+      let thresh = new cv.Mat();
+
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+      cv.adaptiveThreshold(blurred, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 15, 10);
+
+      cv.imshow(canvas, thresh);
+
+      originalImageData = thresh.clone();
+
+      src.delete(); gray.delete(); blurred.delete(); thresh.delete();
+    }
+
+    document.getElementById('invert-btn').onclick = () => {
+      if (!originalImageData) return;
+      isInverted = !isInverted;
+      let mat = originalImageData.clone();
+      if (isInverted) {
+        cv.bitwise_not(mat, mat);
+      }
+      cv.imshow(canvas, mat);
+      mat.delete();
+    };
+
+    document.getElementById('turd-size').oninput = (e) => {
+      document.getElementById('turd-value').textContent = e.target.value;
+    };
+
+    document.getElementById('convert-btn').onclick = () => {
+      const turdSize = parseFloat(document.getElementById('turd-size').value);
+      const fillColor = document.getElementById('fill-color').value;
+
+      const svg = Potrace.potrace(canvas, {
+        turdSize: turdSize,
+        turnPolicy: Potrace.TURNPOLICY_MINORITY,
+        background: 'transparent',
+        color: fillColor
+      });
+
+      // Replace fill with user color
+      const coloredSvg = svg.replace(/fill="[^"]*"/g, `fill="${fillColor}"`);
+
+      outputDiv.innerHTML = coloredSvg;
+      outputDiv.classList.remove('hidden');
+      downloadBtn.classList.remove('hidden');
+
+      downloadBtn.onclick = () => {
+        const blob = new Blob([coloredSvg], {type: 'image/svg+xml'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'silhouette.svg';
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+    };
+  </script>
+</body>
+</html>
