@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.1"/>
   <title>Silhouettify – Free Photo to Silhouette SVG Converter</title>
   <meta name="description" content="Silhouettify – Instantly turn any photo into a clean, customizable silhouette SVG. 100% free, no upload, works offline."/>
   <style>
@@ -32,6 +32,7 @@
     input[type="number"] {width: 80px;padding: 8px;border: 2px solid #d8b4fe;border-radius: 8px;font-size: 14px;}
     button {background: var(--primary);color: white;border: none;padding: 14px 28px;border-radius: 12px;font-size: 16px;font-weight: 600;cursor: pointer;transition: 0.2s;margin: 5px;}
     button:hover {background: var(--primary-dark);transform: translateY(-2px);}
+    button:disabled {background: #cbd5e1;cursor: not-allowed;transform: none;}
     button.secondary {background: #94a3b8;}
     button.success {background: #10b981;}
     button.success:hover {background: #059669;}
@@ -44,12 +45,13 @@
     footer a {color: var(--primary);}
     .info-text {font-size: 14px;color: #6b7280;margin-top: 5px;}
     select {padding: 8px 12px;border: 2px solid #d8b4fe;border-radius: 8px;font-size: 14px;background: white;cursor: pointer;}
+    .status {font-size: 14px;color: #8b5cf6;margin: 10px 0;font-weight: 600;}
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Silhouettify</h1>
-    <div class="subtitle">Free Photo to Silhouette SVG Converter 1.0</div>
+    <div class="subtitle">Free Photo to Silhouette SVG Converter</div>
     <div class="creator">Created by <a href="https://nagohcreative.com" target="_blank">NagohCreative.Com</a></div>
 
     <div id="drop-area">
@@ -102,10 +104,12 @@
       </div>
       
       <div class="control">
-        <button id="convert-btn">Generate Silhouette SVG</button>
+        <button id="convert-btn">Generate & Download SVG</button>
         <button id="invert-btn" class="secondary">Invert</button>
         <button id="reset-btn" class="secondary">Reset Image</button>
       </div>
+      
+      <p class="status hidden" id="status-text"></p>
     </div>
 
     <div id="output-svg" class="hidden"></div>
@@ -125,13 +129,15 @@
   </div>
 
   <script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCVReady()"></script>
-  <script src="https://unpkg.com/@plotters/potrace@2.0.0/dist/potrace.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/potrace/1.0.0/potrace.min.js"></script>
 
   <script>
     let originalImageData = null;
     let isInverted = false;
     let currentSvgString = '';
     let originalImage = null;
+    let cvReady = false;
+    let potraceReady = false;
 
     const dropArea = document.getElementById('drop-area');
     const fileInput = document.getElementById('file-input');
@@ -140,6 +146,8 @@
     const controls = document.getElementById('controls');
     const outputDiv = document.getElementById('output-svg');
     const downloadSection = document.getElementById('download-section');
+    const statusText = document.getElementById('status-text');
+    const convertBtn = document.getElementById('convert-btn');
 
     function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
 
@@ -178,6 +186,7 @@
           controls.classList.remove('hidden');
           outputDiv.classList.add('hidden');
           downloadSection.classList.add('hidden');
+          statusText.classList.add('hidden');
           isInverted = false;
           processWithOpenCV(img);
         };
@@ -187,10 +196,16 @@
     }
 
     function onOpenCVReady() {
+      cvReady = true;
       console.log("OpenCV.js ready – you can now upload images!");
     }
 
     function processWithOpenCV(img) {
+      if (!cvReady) {
+        console.warn("OpenCV not ready yet");
+        return;
+      }
+      
       const threshold = parseInt(document.getElementById('threshold').value);
       const smoothing = parseInt(document.getElementById('smoothing').value);
       
@@ -263,48 +278,185 @@
       }
     };
 
-    document.getElementById('convert-btn').onclick = () => {
-      const turdSize = parseFloat(document.getElementById('turd-size').value);
-      const fillColor = document.getElementById('fill-color').value;
-      const bgColor = document.getElementById('bg-color').value;
+    function showStatus(message) {
+      statusText.textContent = message;
+      statusText.classList.remove('hidden');
+    }
 
-      const svg = Potrace.potrace(canvas, {
-        turdSize: turdSize,
-        turnPolicy: Potrace.TURNPOLICY_MINORITY,
-        background: 'transparent',
-        color: fillColor
-      });
+    function hideStatus() {
+      statusText.classList.add('hidden');
+    }
 
-      // Get size settings
-      const sizePreset = document.getElementById('size-preset').value;
-      let width, height;
+    document.getElementById('convert-btn').onclick = async () => {
+      convertBtn.disabled = true;
+      showStatus('Generating SVG...');
       
-      if (sizePreset === 'original') {
-        width = canvas.width;
-        height = canvas.height;
-      } else if (sizePreset === 'custom') {
-        width = parseInt(document.getElementById('custom-width').value) || 1024;
-        height = parseInt(document.getElementById('custom-height').value) || 1024;
-      } else {
-        width = height = parseInt(sizePreset);
-      }
+      try {
+        // Get current canvas as image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Use a simple tracing algorithm
+        const fillColor = document.getElementById('fill-color').value;
+        const bgColor = document.getElementById('bg-color').value;
+        const turdSize = parseFloat(document.getElementById('turd-size').value);
+        
+        // Get size settings
+        const sizePreset = document.getElementById('size-preset').value;
+        let width, height;
+        
+        if (sizePreset === 'original') {
+          width = canvas.width;
+          height = canvas.height;
+        } else if (sizePreset === 'custom') {
+          width = parseInt(document.getElementById('custom-width').value) || 1024;
+          height = parseInt(document.getElementById('custom-height').value) || 1024;
+        } else {
+          width = height = parseInt(sizePreset);
+        }
 
-      // Create proper SVG with viewBox and dimensions
-      const svgMatch = svg.match(/<svg[^>]*>([\s\S]*)<\/svg>/);
-      const pathContent = svgMatch ? svgMatch[1] : '';
-      
-      const finalSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${canvas.width} ${canvas.height}">
+        // Create SVG from bitmap
+        const paths = traceBitmap(imageData, turdSize);
+        
+        currentSvgString = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${canvas.width} ${canvas.height}">
   <rect width="100%" height="100%" fill="${bgColor}"/>
   <g fill="${fillColor}">
-    ${pathContent}
+    ${paths}
   </g>
 </svg>`;
 
-      currentSvgString = finalSvg;
-      outputDiv.innerHTML = finalSvg;
-      outputDiv.classList.remove('hidden');
-      downloadSection.classList.remove('hidden');
+        outputDiv.innerHTML = currentSvgString;
+        outputDiv.classList.remove('hidden');
+        downloadSection.classList.remove('hidden');
+        
+        showStatus('SVG generated! Click Download SVG to save.');
+        
+        // Auto-download
+        setTimeout(() => {
+          const blob = new Blob([currentSvgString], {type: 'image/svg+xml;charset=utf-8'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'silhouettify.svg';
+          a.click();
+          URL.revokeObjectURL(url);
+          showStatus('SVG downloaded!');
+          setTimeout(hideStatus, 3000);
+        }, 500);
+        
+      } catch (error) {
+        console.error('Error generating SVG:', error);
+        showStatus('Error generating SVG. Please try adjusting the settings.');
+      } finally {
+        convertBtn.disabled = false;
+      }
     };
+
+    function traceBitmap(imageData, simplify) {
+      const width = imageData.width;
+      const height = imageData.height;
+      const data = imageData.data;
+      
+      // Create a binary array
+      const binary = [];
+      for (let y = 0; y < height; y++) {
+        binary[y] = [];
+        for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4;
+          binary[y][x] = data[i] > 128 ? 1 : 0;
+        }
+      }
+      
+      // Find contours using marching squares
+      const paths = [];
+      const visited = Array(height).fill(null).map(() => Array(width).fill(false));
+      
+      for (let y = 0; y < height - 1; y++) {
+        for (let x = 0; x < width - 1; x++) {
+          if (binary[y][x] === 1 && !visited[y][x]) {
+            const path = traceContour(binary, visited, x, y, width, height, simplify);
+            if (path.length > 0) {
+              paths.push(path);
+            }
+          }
+        }
+      }
+      
+      return paths.map(path => `<path d="${path}"/>`).join('\n    ');
+    }
+
+    function traceContour(binary, visited, startX, startY, width, height, simplify) {
+      const points = [];
+      let x = startX;
+      let y = startY;
+      
+      // Flood fill to get all connected points
+      const stack = [[x, y]];
+      const region = [];
+      
+      while (stack.length > 0) {
+        const [cx, cy] = stack.pop();
+        
+        if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
+        if (visited[cy][cx] || binary[cy][cx] === 0) continue;
+        
+        visited[cy][cx] = true;
+        region.push([cx, cy]);
+        
+        // Add neighbors
+        stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+      }
+      
+      if (region.length < simplify * 2) return '';
+      
+      // Find boundary points
+      const boundary = [];
+      for (const [px, py] of region) {
+        let isBoundary = false;
+        for (const [dx, dy] of [[1,0], [-1,0], [0,1], [0,-1]]) {
+          const nx = px + dx;
+          const ny = py + dy;
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height || binary[ny][nx] === 0) {
+            isBoundary = true;
+            break;
+          }
+        }
+        if (isBoundary) boundary.push([px, py]);
+      }
+      
+      if (boundary.length < 3) return '';
+      
+      // Simplify path based on simplify value
+      const simplified = simplifyPath(boundary, simplify);
+      
+      if (simplified.length < 3) return '';
+      
+      // Create SVG path
+      let pathD = `M ${simplified[0][0]} ${simplified[0][1]}`;
+      for (let i = 1; i < simplified.length; i++) {
+        pathD += ` L ${simplified[i][0]} ${simplified[i][1]}`;
+      }
+      pathD += ' Z';
+      
+      return pathD;
+    }
+
+    function simplifyPath(points, tolerance) {
+      if (points.length <= 2) return points;
+      
+      const step = Math.max(1, Math.floor(tolerance));
+      const simplified = [];
+      
+      for (let i = 0; i < points.length; i += step) {
+        simplified.push(points[i]);
+      }
+      
+      if (simplified[simplified.length - 1] !== points[points.length - 1]) {
+        simplified.push(points[points.length - 1]);
+      }
+      
+      return simplified;
+    }
 
     document.getElementById('download-svg-btn').onclick = () => {
       const blob = new Blob([currentSvgString], {type: 'image/svg+xml;charset=utf-8'});
@@ -347,7 +499,7 @@
           URL.revokeObjectURL(url);
         }, 'image/png');
       };
-      img.src = 'data:image/svg+xml;base64,' + btoa(currentSvgString);
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(currentSvgString)));
     };
 
     document.getElementById('copy-svg-btn').onclick = () => {
